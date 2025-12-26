@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EcoWira: Jannah Edition</title>
+    <meta name="theme-color" content="#064e3b">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <style>
+        /* * ------------------------------------------------------------------
+         * DESIGN SYSTEM: JANNAH
+         * ------------------------------------------------------------------ */
+        :root {
+            --c-emerald: #059669; --c-dark: #022c22; --c-gold: #d97706; --c-cyan: #0891b2;
+            --c-bg: #f0fdf4; --c-surface: #ffffff; --c-text: #0f172a; --c-muted: #64748b;
+            --shadow: 0 4px 15px rgba(0,0,0,0.08);
+            --font-ui: 'Plus Jakarta Sans', sans-serif;
+            --font-arab: 'Amiri', serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { margin: 0; padding: 0; background: #000; font-family: var(--font-ui); display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+
+        /* DEVICE FRAME */
+        .viewport { width: 100%; max-width: 428px; height: 100vh; max-height: 926px; background: var(--c-bg); position: relative; overflow: hidden; display: flex; flex-direction: column; border-radius: 40px; }
+        @media (max-width: 450px) { .viewport { border-radius: 0; max-height: 100vh; } }
+
+        /* VIEWS */
+        .view { position: absolute; inset: 0; background: var(--c-bg); display: flex; flex-direction: column; padding-top: 50px; opacity: 0; pointer-events: none; transition: 0.3s; transform: scale(0.98); }
+        .view.active { opacity: 1; pointer-events: auto; transform: scale(1); z-index: 10; }
+        .scroll-y { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+        .scroll-y::-webkit-scrollbar { display: none; }
+
+        /* COMPONENTS */
+        .card { background: var(--c-surface); border-radius: 20px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 14px; border-radius: 14px; border: none; font-weight: 700; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn-gold { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3); }
+        .btn-primary { background: var(--c-emerald); color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }
+        .btn-glass { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; }
+        .btn-ghost { background: transparent; border: 1px solid #e2e8f0; color: var(--c-text); }
+
+        /* INPUTS */
+        input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; margin-bottom: 12px; font-family: inherit; }
+        input::placeholder { color: rgba(255,255,255,0.6); }
+
+        /* PILLS & TAGS */
+        .pill { padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+        .pill-gold { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
+        .pill-green { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
+
+        /* WIDGETS */
+        .prayer-card { background: linear-gradient(145deg, #065f46, #047857); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .tazkirah-box { background: #ecfeff; border-left: 4px solid var(--c-cyan); padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+        .quote-text { font-family: var(--font-arab); font-size: 16px; color: #155e75; line-height: 1.6; font-style: italic; }
+
+        /* MAP & CAMERA */
+        #map-root { width: 100%; height: 100%; z-index: 1; }
+        .map-ctrl { position: absolute; top: 100px; left: 0; right: 0; padding: 0 20px; display: flex; gap: 8px; overflow-x: auto; z-index: 500; }
+        .chip { background: white; padding: 8px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; box-shadow: var(--shadow); white-space: nowrap; cursor: pointer; border: 1px solid transparent; }
+        .chip.active { background: var(--c-dark); color: white; }
+
+        .cam-view { width: 100%; height: 100%; background: #000; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .cam-hud { position: absolute; inset: 20px; border: 2px solid rgba(255,255,255,0.3); border-radius: 24px; pointer-events: none; }
+        .cam-btn { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); width: 70px; height: 70px; border: 4px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cam-inner { width: 50px; height: 50px; background: white; border-radius: 50%; transition: 0.2s; }
+        .cam-btn:active .cam-inner { transform: scale(0.8); background: var(--c-emerald); }
+
+        /* NAV DOCK */
+        .dock { position: absolute; bottom: 30px; left: 20px; right: 20px; height: 70px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 35px; display: flex; justify-content: space-around; align-items: center; box-shadow: var(--shadow); z-index: 1000; }
+        .dock i { font-size: 24px; color: var(--c-muted); padding: 10px; border-radius: 50%; transition: 0.2s; cursor: pointer; }
+        .dock i.active { color: var(--c-emerald); background: #d1fae5; }
+        .fab { width: 56px; height: 56px; background: var(--c-gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; transform: translateY(-25px); border: 4px solid var(--c-bg); box-shadow: 0 5px 15px rgba(217, 119, 6, 0.4); cursor: pointer; }
+
+        /* MODALS */
+        .modal { position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000; display: none; align-items: flex-end; backdrop-filter: blur(5px); }
+        .modal.open { display: flex; animation: fadeIn 0.2s; }
+        .modal-box { width: 100%; background: white; padding: 24px; border-radius: 24px 24px 0 0; text-align: center; animation: slideUp 0.3s; }
+        @keyframes fadeIn { from {opacity:0} to {opacity:1} }
+        @keyframes slideUp { from {transform:translateY(100%)} to {transform:translateY(0)} }
+
+    </style>
+</head>
+<body>
+
+    <div class="viewport">
+        <div style="position: absolute; top:0; width:100%; height:44px; display:flex; justify-content:space-between; padding:0 24px; align-items:center; font-size:12px; font-weight:700; z-index:9999;">
+            <span>9:41</span>
+            <div style="display:flex; gap:5px;"><i class="ri-signal-tower-fill"></i><i class="ri-wifi-line"></i><i class="ri-battery-fill"></i></div>
+        </div>
+
+        <div id="view-auth" class="view active" style="background: linear-gradient(160deg, #064e3b, #047857); color: white; justify-content: center; padding: 32px;">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <div style="font-size: 60px; margin-bottom: 10px;">🕌</div>
+                <h1 style="font-family: var(--font-arab); font-size: 42px; margin: 0;">EcoWira</h1>
+                <p style="opacity: 0.8; letter-spacing: 2px; font-size: 12px; text-transform: uppercase;">Amanah Stewardship</p>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 20px; backdrop-filter: blur(5px);">
+                <input type="text" id="input-name" placeholder="Full Name" value="Ali bin Abu">
+                <input type="email" id="input-email" placeholder="Email Address" value="student@uitm.edu.my">
+                <button class="btn btn-gold" onclick="App.login()">Begin Journey</button>
+            </div>
+        </div>
+
+        <div id="view-home" class="view">
+            <div style="padding: 20px 20px 10px 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size:11px; font-weight:700; color:var(--c-emerald);">ASSALAMUALAIKUM</div>
+                    <div style="font-size:20px; font-weight:800;" id="user-name-display">Guardian</div>
+                </div>
+                <div class="pill pill-gold" onclick="App.nav('rewards')">
+                    <i class="ri-medal-fill"></i> <span id="dash-xp">0</span> XP
+                </div>
+            </div>
+
+            <div class="scroll-y">
+                <div class="card prayer-card">
+                    <div>
+                        <div style="font-size:11px; opacity:0.8; text-transform: uppercase;">Next Prayer: Asar</div>
+                        <div style="font-size:32px; font-weight:800; line-height:1;">4:42 <span style="font-size:16px">PM</span></div>
+                        <div style="font-size:11px; opacity:0.8; margin-top:4px;"><i class="ri-map-pin-line"></i> Kuala Kubu Bharu</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <i class="ri-moon-clear-line" style="font-size:32px;"></i>
+                        <div style="font-size:11px; margin-top:4px;">Qibla: 292°</div>
+                    </div>
+                </div>
+
+                <div class="tazkirah-box">
+                    <div class="quote-text">"And do not cause corruption on the earth after it has been set in order."</div>
+                    <div style="font-size:11px; font-weight:700; color:var(--c-cyan); text-align:right;">- Surah Al-A'raf: 56</div>
+                </div>
+
+                <div class="card" style="border: 1px solid var(--c-emerald);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <div style="font-size:12px; font-weight:700; color:var(--c-emerald);">MISSION GEAR</div>
+                        <div class="pill" style="background:#fee2e2; color:#ef4444;" id="kit-status">MISSING</div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="card" style="flex:1; margin:0; padding:10px; text-align:center; background:#f8fafc;" id="slot-gloves">
+                            <div style="font-size:24px;">🧤</div><div style="font-size:10px; font-weight:700;">Gloves</div>
+                        </div>
+                        <div class="card" style="flex:1; margin:0; padding:10px; text-align:center; background:#f8fafc;" id="slot-bag">
+                            <div style="font-size:24px;">🎒</div><div style="font-size:10px; font-weight:700;">Bag</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top:12px; height:40px; font-size:12px;" onclick="App.nav('map')">Find Checkpoint</button>
+                </div>
+
+                <h3 style="font-size:16px; margin-bottom:10px;">Khalifah Tools</h3>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div class="card" style="margin:0; text-align:center;" onclick="WudhuSys.open()">
+                        <i class="ri-drop-line" style="font-size:24px; color:var(--c-cyan);"></i>
+                        <div style="font-weight:700; font-size:13px; margin-top:5px;">Air Mutlaq</div>
+                    </div>
+                    <div class="card" style="margin:0; text-align:center;" onclick="App.nav('rewards')">
+                        <i class="ri-store-2-line" style="font-size:24px; color:var(--c-gold);"></i>
+                        <div style="font-weight:700; font-size:13px; margin-top:5px;">Eco-Mart</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-map" class="view">
+            <div id="map-root"></div>
+            <div class="map-ctrl">
+                <div class="chip active" onclick="MapSys.filter('all', this)">All</div>
+                <div class="chip" onclick="MapSys.filter('checkpoint', this)">🎒 Checkpoints</div>
+                <div class="chip" onclick="MapSys.filter('mosque', this)">🕌 Surau</div>
+            </div>
+        </div>
+
+        <div id="view-scan" class="view" style="background:black;">
+            <div class="cam-view">
+                <video id="cam-feed" autoplay playsinline muted></video>
+                <div class="cam-hud">
+                    <div style="position:absolute; top:20px; left:20px; color:white; font-family:monospace;">AI: ACTIVE<br>TARGET: PLASTIC</div>
+                </div>
+                <div class="cam-btn" onclick="Scanner.capture()"><div class="cam-inner"></div></div>
+            </div>
+        </div>
+
+        <div id="view-rewards" class="view">
+            <div style="padding:24px; background:var(--c-gold); color:white; border-radius:0 0 24px 24px;">
+                <h2 style="margin:0;">Eco-Mart</h2>
+                <p style="font-size:12px; opacity:0.8;">Redeem points for local KKB rewards</p>
+                <div style="font-size:24px; font-weight:800; margin-top:10px;"><span id="mart-balance">0</span> PTS</div>
+            </div>
+            <div class="scroll-y">
+                <div class="card" style="display:flex; gap:15px; align-items:center;">
+                    <div style="font-size:30px;">🥥</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;">Coconut Shake</div>
+                        <div style="font-size:11px; color:var(--c-muted);">Warung Tepi Sungai</div>
+                    </div>
+                    <button class="btn btn-primary" style="width:auto; padding:8px 16px; font-size:11px;" onclick="App.redeem(300)">300 XP</button>
+                </div>
+                <div class="card" style="display:flex; gap:15px; align-items:center;">
+                    <div style="font-size:30px;">🍛</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;">RM5 Food Voucher</div>
+                        <div style="font-size:11px; color:var(--c-muted);">Medan Selera KKB</div>
+                    </div>
+                    <button class="btn btn-primary" style="width:auto; padding:8px 16px; font-size:11px;" onclick="App.redeem(500)">500 XP</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-profile" class="view">
+            <div class="scroll-y">
+                <div style="text-align:center; margin-bottom:20px;">
+                    <div style="width:80px; height:80px; background:#e2e8f0; border-radius:50%; margin:0 auto 10px; overflow:hidden;">
+                        <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80" style="width:100%; height:100%; object-fit:cover;">
+                    </div>
+                    <h2 id="prof-name" style="margin:0;">Ali</h2>
+                    <p style="font-size:12px; color:var(--c-muted);" id="prof-email">student@email.com</p>
+                </div>
+                
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <span style="font-size:12px; font-weight:700; color:var(--c-muted);">MY BADGES</span>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div style="width:50px; height:50px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px;">🌊</div>
+                        <div style="width:50px; height:50px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px;">🕌</div>
+                        <div style="width:50px; height:50px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px;">🎒</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view">
+            <div style="padding:24px;"><h2>Settings</h2></div>
+            <div class="scroll-y" style="padding-top:0;">
+                <div class="card">
+                    <div style="padding:12px 0; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between;">
+                        <span>Notifications</span>
+                        <div style="width:36px; height:20px; background:var(--c-emerald); border-radius:20px; position:relative;"><div style="width:16px; height:16px; background:white; border-radius:50%; position:absolute; top:2px; right:2px;"></div></div>
+                    </div>
+                    <div style="padding:12px 0;"><span>Language: English</span></div>
+                </div>
+                <button class="btn btn-ghost" style="color:red; border-color:red;" onclick="App.logout()">Log Out</button>
+            </div>
+        </div>
+
+        <div id="modal-gear" class="modal">
+            <div class="modal-box">
+                <div style="font-size:50px;">🎒</div>
+                <h3>Alhamdulillah!</h3>
+                <p style="font-size:14px; color:var(--c-muted); margin:10px 0 20px;">Eco-Kit Collected. You have gloves & bags.</p>
+                <button class="btn btn-primary" onclick="MapSys.closeModal()">Continue</button>
+            </div>
+        </div>
+
+        <div id="modal-wudhu" class="modal">
+            <div class="modal-box" style="text-align:left;">
+                <h3 style="margin-top:0;">Water Purity</h3>
+                <p style="font-size:13px; margin-bottom:15px;">1. Is the water flowing (Air Sungai)?</p>
+                <button class="btn btn-primary" style="margin-bottom:10px;" onclick="WudhuSys.result(true)">Yes, Flowing</button>
+                <button class="btn btn-ghost" onclick="WudhuSys.result(false)">No, Stagnant</button>
+                <div style="text-align:center; margin-top:15px; font-size:24px; cursor:pointer;" onclick="WudhuSys.close()">✕</div>
+            </div>
+        </div>
+
+        <div class="dock">
+            <i class="ri-home-5-line active" onclick="App.nav('home', this)"></i>
+            <i class="ri-map-2-line" onclick="App.nav('map', this)"></i>
+            <div class="fab" onclick="App.nav('scan')"><i class="ri-qr-scan-2-line"></i></div>
+            <i class="ri-store-2-line" onclick="App.nav('rewards', this)"></i>
+            <i class="ri-settings-4-line" onclick="App.nav('settings', this)"></i>
+        </div>
+
+    </div>
+
+    <script>
+        const App = {
+            xp: 0, hasGear: false,
+            
+            login() {
+                const name = document.getElementById('input-name').value || "Guardian";
+                const email = document.getElementById('input-email').value || "student@uitm.edu.my";
+                
+                document.getElementById('user-name-display').innerText = name;
+                document.getElementById('prof-name').innerText = name;
+                document.getElementById('prof-email').innerText = email;
+                
+                this.nav('home');
+            },
+
+            nav(id, el) {
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById('view-' + id).classList.add('active');
+                if(el) {
+                    document.querySelectorAll('.dock i').forEach(i => i.classList.remove('active'));
+                    el.classList.add('active');
+                } else {
+                    document.querySelectorAll('.dock i').forEach(i => i.classList.remove('active'));
+                    if(id === 'profile') document.querySelectorAll('.dock i')[4].classList.add('active'); // Approximate
+                }
+                
+                if(id === 'map') setTimeout(() => MapSys.init(), 200);
+                if(id === 'rewards') document.getElementById('mart-balance').innerText = this.xp;
+                if(id === 'scan') Scanner.start(); else Scanner.stop();
+            },
+
+            addXP(amount) {
+                this.xp += amount;
+                document.getElementById('dash-xp').innerText = this.xp;
+            },
+
+            redeem(cost) {
+                if(this.xp >= cost) {
+                    if(confirm("Redeem Reward?")) {
+                        this.xp -= cost;
+                        document.getElementById('dash-xp').innerText = this.xp;
+                        document.getElementById('mart-balance').innerText = this.xp;
+                        alert("Redeemed! Show to vendor.");
+                    }
+                } else alert("Not enough XP");
+            },
+
+            logout() { location.reload(); }
+        };
+
+        const MapSys = {
+            map: null,
+            data: [
+                { type: 'checkpoint', lat: 3.5950, lng: 101.7340, title: "Checkpoint Alpha (Chiling)" },
+                { type: 'checkpoint', lat: 3.5750, lng: 101.7360, title: "Checkpoint Beta (Pertak)" },
+                { type: 'mosque', lat: 3.5960, lng: 101.7350, title: "Surau Santuari" }
+            ],
+
+            init() {
+                if(this.map) return;
+                this.map = L.map('map-root', {zoomControl:false}).setView([3.5800, 101.7200], 13);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(this.map);
+                this.render('all');
+            },
+
+            render(filter) {
+                this.data.forEach(item => {
+                    if(filter !== 'all' && item.type !== filter) return;
+                    const color = item.type === 'checkpoint' ? '#d97706' : '#059669';
+                    const icon = item.type === 'checkpoint' ? '🎒' : '🕌';
+                    
+                    const divIcon = L.divIcon({
+                        className: 'custom-pin',
+                        html: `<div style="background:${color}; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.2); font-size:18px;">${icon}</div>`
+                    });
+
+                    const m = L.marker([item.lat, item.lng], {icon: divIcon}).addTo(this.map);
+                    
+                    // FIXED: DIRECT CLICK HANDLER
+                    m.on('click', () => {
+                        if(item.type === 'checkpoint') MapSys.collectGear();
+                        else alert(item.title);
+                    });
+                });
+            },
+
+            filter(type, el) {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                el.classList.add('active');
+                // In full app, clear layers here. Simplified for brevity.
+            },
+
+            collectGear() {
+                document.getElementById('modal-gear').classList.add('open');
+                App.hasGear = true;
+                document.getElementById('kit-status').innerText = "READY";
+                document.getElementById('kit-status').style.background = "#d1fae5";
+                document.getElementById('kit-status').style.color = "#059669";
+                document.getElementById('slot-gloves').style.border = "2px solid #059669";
+                document.getElementById('slot-bag').style.border = "2px solid #059669";
+            },
+
+            closeModal() { document.getElementById('modal-gear').classList.remove('open'); }
+        };
+
+        const Scanner = {
+            stream: null, video: document.getElementById('cam-feed'),
+            start() {
+                if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                    .then(s => { this.stream = s; this.video.srcObject = s; })
+                    .catch(e => console.log("Cam error/http", e));
+                }
+            },
+            stop() { if(this.stream) this.stream.getTracks().forEach(t => t.stop()); },
+            capture() {
+                if(!App.hasGear) { alert("⚠️ Collect Eco-Kit first!"); return; }
+                alert("Trash Verified! +150 XP");
+                App.addXP(150);
+                App.nav('home');
+            }
+        };
+
+        const WudhuSys = {
+            open() { document.getElementById('modal-wudhu').classList.add('open'); },
+            close() { document.getElementById('modal-wudhu').classList.remove('open'); },
+            result(val) {
+                this.close();
+                alert(val ? "✅ Mutlaq (Pure). Valid." : "❌ Changed. Invalid.");
+            }
+        };
+    </script>
+</body>
+</html>
